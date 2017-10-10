@@ -1,41 +1,7 @@
 (function(){
 
-var taskList = new Array(), taskOrder = new Array();
-var selTask = 0;
-var flag = { needAuth:false, isLogged:false, tagsChanged:true, readOnly:false, editFormChanged:false };
-var taskCnt = { total:0, past: 0, today:0, soon:0 };
-var tabLists = {
-	_lists: {},
-	_length: 0,
-	_order: [],
-	_alltasks: {},
-	clear: function(){
-		this._lists = {}; this._length = 0; this._order = [];
-		this._alltasks = { id:-1, showCompl:0, sort:3 }; 
-	},
-	length: function(){ return this._length; },
-	exists: function(id){ if(this._lists[id] || id==-1) return true; else return false; },
-	add: function(list){ this._lists[list.id] = list; this._length++; this._order.push(list.id); },
-	replace: function(list){ this._lists[list.id] = list; },
-	get: function(id){ if(id==-1) return this._alltasks; else return this._lists[id]; },
-	getAll: function(){ var r = []; for(var i in this._order) { r.push(this._lists[this._order[i]]); }; return r; },
-	reorder: function(order){ this._order = order; }
-};
-var curList = 0;
-var tagsList = [];
 
 var todo = window.todo = _td = {
-
-	theme: {
-		newTaskFlashColor: '#ffffaa',
-		editTaskFlashColor: '#bbffaa',
-		msgFlashColor: '#ffffff'
-	},
-
-	actions: {},
-	menus: {},
-	appUrl: '',
-	templateUrl: '',
 
 	// procs
 	init: function(options)
@@ -43,52 +9,47 @@ var todo = window.todo = _td = {
 		jQuery.extend(this.options, options);
 
 		// handlers
-		$('#newtask_form').submit(function(){
+		$('#add-new-task').submit(function(e){
+			e.preventDefault();
 			submitNewTask(this);
-			return false;
+			return completeTask;  
 		});
 		
-		$('#newtask_submit').click(function(){
-			$('#newtask_form').submit();
+		
+		$('#task-list').on('click', '.complete-button', function(e){
+			e.preventDefault();
+			completeTask(this)
+			return false;  
 		});
 		
-		// tasklist handlers
-		$("#tasklist").bind("click", tasklistClick);
+		$('#complete-all').click(function(e){
+			e.preventDefault();
+			$('.complete-button').each(function() { completeTask(this) })
+			return false;  
+		});
 
 		// AJAX Errors
-		$('#msg').ajaxSend(function(r,s){
-			$("#msg").hide().removeClass('mtt-error mtt-info').find('.msg-details').hide();
+		$( document ).ajaxSend(function(r,s){
+			$("#msg").hide().removeClass('msg-error msg-info').find('.msg-details').hide();			
 			$("#loading").show();
 		});
 
-		$('#msg').ajaxStop(function(r,s){
+		$( document ).ajaxStop(function(r,s){
 			$("#loading").fadeOut();
 		});
 
-		$('#msg').ajaxError(function(event, request, settings){
+		$( document ).ajaxError(function(event, request, settings){
 			var errtxt;
 			if(request.status == 0) errtxt = 'Bad connection';
 			else if(request.status != 200) errtxt = 'HTTP: '+request.status+'/'+request.statusText;
 			else errtxt = request.responseText;
-			flashError(_td.lang.get('error'), errtxt); 
+
+			flashError("Error processing your request", errtxt); 			
 		}); 
-
-
-		// Error Message details
-		$("#msg>.msg-text").click(function(){
-			$("#msg>.msg-details").toggle();
-		});
-
-		$(window).bind('beforeunload', function() {
-			if(_td.pages.current.page == 'taskedit' && flag.editFormChanged) {
-				return _td.lang.get('confirmLeave');
-			}
-		});
-
 
 		return this;
 	},
-
+	loadTasks,
 	log: function(v)
 	{
 		console.log.apply(this, arguments);
@@ -96,68 +57,85 @@ var todo = window.todo = _td = {
 
 };
 
-function loadTasks(opts)
+function loadTasks()
 {
-	if(!curList) return false;
-	opts = opts || {};
-	if(opts.clearTasklist) {
-		$('#tasklist').html('');
-		$('#total').html('0');
-	}
-
 	_td.db.request('loadTasks', { }, function(json){
-		taskList.length = 0;
-		taskCnt.total = taskCnt.past = taskCnt.today = taskCnt.soon = 0;
 		var tasks = '';
 		$.each(json.list, function(i,item){
 			tasks += prepareTaskStr(item);
-			taskList[item.id] = item;
-			changeTaskCnt(item, 1);
 		});
-		if(opts.beforeShow && opts.beforeShow.call) {
-			opts.beforeShow();
-		}
-		refreshTaskCnt();
-		$('#tasklist').html(tasks);
+		$('#task-list ul').html(tasks);
 	});
 };
 
 
 function prepareTaskStr(item)
 {
-	return `<li id="taskrow_">${item.id} ${item.title}</li>`;
+	return `<li class="${item.compl ? 'completed' : 'pending'}">
+			<span>${item.task}</span>
+			<img id="${item.id}" class="${item.compl ? 'delete' : 'complete'}-button" width="10px" src="images/close.svg" />
+		</li>`;
 };
 
 
 function submitNewTask(form)
 {
 	if(form.task.value == '') return false;
-	_td.db.request('newTask', { list:curList.id, title: form.task.value }, function(json){
-		
+	_td.db.request('newTask', { task: form.task.value }, function(json){
+		$.each(json.list, function(i,item){
+			$('#task-list ul').append(prepareTaskStr(item));
+			form.task.value = '';
+		});
 	}); 
-	flag.tagsChanged = true;
 	return false;
 };
 
 function deleteTask(id)
 {
-	if(!confirm(_td.lang.get('confirmDelete'))) {
+	if(!confirm('Are you sure you want to permanently delete this task>')) {
 		return false;
 	}
-	_td.db.request('deleteTask', {id:id}, function(json){=
+	_td.db.request('deleteTask', {id:id}, function(json){
 	});
-	flag.tagsChanged = true;
 	return false;
 };
 
-function completeTask(id, ch)
+function completeTask(el)
 {
-	if(!taskList[id]) return; //click on already removed from the list while anim. effect
-	var compl = 0;
-	if(ch.checked) compl = 1;
-	_td.db.request('completeTask', {id:id, compl:compl, list:curList.id}, function(json){
+	var id = $(el).attr('id');
+	var compl = 1;
+	_td.db.request('completeTask', {id:id, compl:compl}, function(json){
+		$(el).parent().fadeOut("fast", function() { $(el).parent().remove();})
 	});
 	return false;
 };
+
+/*
+	Errors and Info messages
+*/
+
+function flashError(str, details)
+{
+	$("#msg>.msg-text").text(str)
+	$("#msg>.msg-details").text(details);
+	$("#loading").hide();
+	$("#msg").addClass('msg-error');
+}
+
+function flashInfo(str, details)
+{
+	$("#msg>.msg-text").text(str)
+	$("#msg>.msg-details").text(details);
+	$("#loading").hide();
+	$("#msg").addClass('msg-info');
+}
+
+function toggleMsgDetails()
+{
+	var el = $("#msg>.msg-details");
+	if(!el) return;
+	if(el.css('display') == 'none') el.show();
+	else el.hide()
+}
 
 })();

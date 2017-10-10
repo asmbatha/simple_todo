@@ -34,16 +34,17 @@ $ver = get_ver($db, $dbtype);
 if(!$ver)
 {
 	$dbtype = 'sqlite';
-	Config::set('db', $dbtype);
-	if(!testConnect($error)) {
-		exitMessage("Database connection error: $error");
+	if(Config::get('db') != 'sqlite'){
+		Config::set('db', $dbtype);
+		if(!testConnect($error)) {
+			exitMessage("Database connection error: $error");
+		}
+		if(!is_writable('./db/config.php')) {
+			exitMessage("Config file ('db/config.php') is not writable.");
+		}
+		Config::save();
+		exitMessage("This will create todo database <form method=post><input type=hidden name=install value=1><input type=submit value=' Install '></form>");
 	}
-	if(!is_writable('./db/config.php')) {
-		exitMessage("Config file ('db/config.php') is not writable.");
-	}
-	Config::save();
-	exitMessage("This will create todo database <form method=post><input type=hidden name=install value=1><input type=submit value=' Install '></form>");
-
 	# install database
 	
 	try
@@ -51,17 +52,16 @@ if(!$ver)
 		$db->ex(
 		"CREATE TABLE {$db->prefix}todo (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			`date` DATE NOT NULL,
-			`time` TIME NOT NULL,
+			`task` TEXT NOT NULL,
+			`completed` TINYINT UNSIGNED NOT NULL default 0
 		) ");
-
 
 	} catch (Exception $e) {
 		exitMessage("<b>Error:</b> ". htmlarray($e->getMessage()));
 	} 
 
 }
-echo "Done<br><br> <b>Attention!</b> Delete this file for security reasons.";
+echo "Done <a href=index.php>Click here to return to the Homepage.</a><br><br> <b>Attention!</b> Delete this file for security reasons.";
 printFooter();
 
 

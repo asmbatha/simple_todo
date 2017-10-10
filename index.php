@@ -2,7 +2,7 @@
 
 require_once('./init.php');
 
-define('TEMPLATEPATH', APPPATH. 'themes/'.Config::get('template').'/');
+define('TEMPLATEPATH', APP_PATH. 'themes/'.Config::get('template').'/');
 
 require(TEMPLATEPATH. 'index.php');
 

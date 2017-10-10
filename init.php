@@ -18,7 +18,7 @@ if(Config::get('db') == 'sqlite')
 {
 	require_once(APP_PATH. 'class.db.sqlite3.php');
 	$db = DBConnection::init(new Database_Sqlite3);
-	$db->connect(APP_PATH. 'db/todolist.db');
+	$db->connect(APP_PATH. 'db/todo.db');
 }
 else {
 	# It seems not installed

@@ -32,7 +32,7 @@ todoStorageAjax.prototype =
 	newTask: function(params, callback)
 	{
 		$.post(this.app.appUrl+'ajax.php?newTask',
-			{ list:params.list, title: params.title, tag:params.tag }, callback, 'json');
+			{ task: params.task }, callback, 'json');
 	},
 	
 	completeTask: function(params, callback)
